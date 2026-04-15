@@ -293,7 +293,7 @@
             Kirim Penilaian
           </button>
           <button
-            onclick="navigate('dashboard')"
+            onclick="submitScore()"
             class="w-full text-gray-400 py-2 text-sm"
           >
             Simpan Draf
@@ -355,31 +355,24 @@
     </nav>
 
     <script>
-      // Variabel Global
+      // === KONFIGURASI UTAMA ===
       const API_URL =
-        "https://script.google.com/macros/s/AKfycbw4FCrMN31uwbgZKACqTJENKUrP05kIMFrQuir5eQYCq9dWsQXHnBW-OX2XYa7LFmbrUQ/exec"; // PASTIKAN URL TERBARU
+        "https://script.google.com/macros/s/AKfycbw4FCrMN31uwbgZKACqTJENKUrP05kIMFrQuir5eQYCq9dWsQXHnBW-OX2XYa7LFmbrUQ/exec"; // Pastikan berakhiran /exec
       let CONFIG_PENILAIAN = {};
       let COMMON_B = [];
+      let currentSantri = {
+        nis: "123456",
+        nama: "Santri Sample",
+        kelas: "6 TMI",
+      }; // Ini nanti diisi dari list santri
 
-      // 1. Fungsi Navigasi Utama (Perbaikan ID)
-      function navigate(viewName) {
-        console.log("Navigasi ke:", viewName);
+      // 1. Inisialisasi Saat Halaman Dimuat
+      window.onload = async function () {
+        console.log("Aplikasi dimulai...");
+        await loadConfiguration();
+      };
 
-        // Sembunyikan semua section yang diawali dengan 'view-'
-        const sections = document.querySelectorAll('section[id^="view-"]');
-        sections.forEach((s) => s.classList.add("hidden"));
-
-        // Tampilkan section yang dituju
-        const target = document.getElementById("view-" + viewName);
-        if (target) {
-          target.classList.remove("hidden");
-          window.scrollTo(0, 0);
-        } else {
-          console.error("View tidak ditemukan: view-" + viewName);
-        }
-      }
-
-      // 2. Load Konfigurasi saat Start
+      // 2. Fungsi Load Config dari Spreadsheet
       async function loadConfiguration() {
         try {
           const response = await fetch(API_URL, {
@@ -387,91 +380,76 @@
             body: JSON.stringify({ action: "getConfig" }),
           });
           const result = await response.json();
-
           if (result.success) {
             CONFIG_PENILAIAN = result.config;
             COMMON_B = result.config["COMMON"]
               ? result.config["COMMON"]["B"]
               : [];
-            console.log("Konfigurasi Siap!");
+            console.log("Konfigurasi berhasil dimuat");
           }
         } catch (e) {
-          console.error("Gagal load config:", e);
+          console.error("Gagal memuat konfigurasi. Cek API_URL dan koneksi.");
         }
       }
 
-      // 3. Fungsi Mulai Penilaian (Dipanggil tombol 'Lanjutkan ke Santri')
+      // 3. Fungsi Navigasi
+      function navigate(viewName) {
+        document
+          .querySelectorAll('section[id^="view-"]')
+          .forEach((s) => s.classList.add("hidden"));
+        const target = document.getElementById("view-" + viewName);
+        if (target) target.classList.remove("hidden");
+        window.scrollTo(0, 0);
+      }
+
+      // 4. Fungsi Mulai Penilaian
       function startAssessment() {
-        // Ambil program yang dipilih
         const selectedProg = document.querySelector(
           'input[name="prog"]:checked',
         );
-        if (!selectedProg) {
-          alert("Pilih program terlebih dahulu!");
-          return;
-        }
+        if (!selectedProg) return alert("Pilih program terlebih dahulu!");
 
-        const programKey = selectedProg.value;
-        console.log("Memulai program:", programKey);
-
-        // Render Form
-        renderAssessmentForm(programKey);
-
-        // Pindah ke halaman form
+        renderAssessmentForm(selectedProg.value);
         navigate("assessment");
       }
 
-      // 4. Render Form Dinamis
+      // 5. Render Form Dinamis
       function renderAssessmentForm(programKey) {
         const container = document.getElementById("subjects-container");
         if (!container) return;
+        container.innerHTML = "";
 
-        container.innerHTML = ""; // Reset
         const progData = CONFIG_PENILAIAN[programKey];
-
-        if (!progData) {
-          container.innerHTML =
-            '<p class="text-red-500">Data program tidak ditemukan di Spreadsheet.</p>';
-          return;
-        }
-
-        // Render tiap kategori
-        if (progData.A)
-          renderCategory(container, "A. KURIKULUM INTRAKURIKULER", progData.A);
+        if (progData && progData.A)
+          renderCategory(container, "A. INTRAKURIKULER", progData.A);
         if (COMMON_B.length > 0)
-          renderCategory(container, "B. KURIKULUM CO-KURIKULER", COMMON_B);
-        if (progData.C)
+          renderCategory(container, "B. CO-KURIKULER", COMMON_B);
+        if (progData && progData.C)
           renderCategory(container, "C. KITAB KUNING", progData.C);
       }
 
       function renderCategory(parent, title, subjects) {
-        let html = `<div class="mt-6 mb-3 font-bold text-emerald-900 text-sm border-l-4 border-emerald-500 pl-2">${title}</div>`;
-
+        let html = `<div class="mt-6 mb-3 font-bold text-emerald-900 text-sm border-l-4 border-emerald-500 pl-2 uppercase">${title}</div>`;
         subjects.forEach((sub, index) => {
-          // Buat ID aman (tanpa spasi/karakter aneh)
-          const safeId = "sub-" + Math.random().toString(36).substr(2, 9);
-
+          const safeId = "id" + Math.random().toString(36).substr(2, 9);
           html += `
         <div class="bg-white rounded-2xl overflow-hidden shadow-sm mb-3 border border-gray-100">
-            <button type="button" onclick="toggleSection('${safeId}')" class="w-full p-4 flex justify-between items-center bg-white active:bg-gray-50">
-                <span class="text-sm font-semibold text-emerald-800 text-left">${sub.nama}</span>
-                <div class="flex items-center gap-2">
-                    <span class="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-1 rounded">/${sub.div}</span>
-                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
-                </div>
+            <button type="button" onclick="toggleSection('${safeId}')" class="w-full p-4 flex justify-between items-center">
+                <span class="text-sm font-semibold text-emerald-800">${sub.nama}</span>
+                <span class="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-1 rounded">/${sub.div}</span>
             </button>
             <div id="${safeId}" class="p-4 grid grid-cols-2 gap-4 hidden border-t border-gray-50 bg-gray-50/30">
                 <div>
-                    <label class="text-[10px] text-gray-400 block mb-1 uppercase">Kitab/Diktat</label>
-                    <input type="number" oninput="calculateSubject('${safeId}', ${sub.div})" id="k-${safeId}" class="w-full border-b-2 border-gray-200 py-1 bg-transparent outline-none focus:border-emerald-500" placeholder="0">
+                    <label class="text-[10px] text-gray-400 block mb-1">KITAB</label>
+                    <input type="number" oninput="calc('${safeId}', ${sub.div})" id="k-${safeId}" class="w-full border-b-2 border-gray-200 py-1 bg-transparent outline-none focus:border-emerald-500" placeholder="0">
                 </div>
                 <div>
-                    <label class="text-[10px] text-gray-400 block mb-1 uppercase">Catatan</label>
-                    <input type="number" oninput="calculateSubject('${safeId}', ${sub.div})" id="c-${safeId}" class="w-full border-b-2 border-gray-200 py-1 bg-transparent outline-none focus:border-emerald-500" placeholder="0">
+                    <label class="text-[10px] text-gray-400 block mb-1">CATATAN</label>
+                    <input type="number" oninput="calc('${safeId}', ${sub.div})" id="c-${safeId}" class="w-full border-b-2 border-gray-200 py-1 bg-transparent outline-none focus:border-emerald-500" placeholder="0">
                 </div>
                 <div class="col-span-2 text-right">
                     <span class="text-xs text-gray-400">Hasil: </span>
-                    <span class="font-bold text-emerald-600" id="res-${safeId}">0.0</span>
+                    <span class="font-bold text-emerald-600" id="res-${safeId}" data-name="${sub.nama}">0.0</span>
                 </div>
             </div>
         </div>`;
@@ -479,20 +457,83 @@
         parent.innerHTML += html;
       }
 
-      function toggleSection(id) {
-        const el = document.getElementById(id);
-        el.classList.toggle("hidden");
-      }
-
-      function calculateSubject(safeId, div) {
-        const k = parseFloat(document.getElementById("k-" + safeId).value) || 0;
-        const c = parseFloat(document.getElementById("c-" + safeId).value) || 0;
+      // 6. Fungsi Kalkulasi (Sekarang namanya 'calc' agar cocok dengan HTML)
+      function calc(id, div) {
+        const k = parseFloat(document.getElementById("k-" + id).value) || 0;
+        const c = parseFloat(document.getElementById("c-" + id).value) || 0;
         const res = (k + c) / div;
-        document.getElementById("res-" + safeId).innerText = res.toFixed(1);
+        document.getElementById("res-" + id).innerText = res.toFixed(1);
+        updateGrandTotal();
       }
 
-      // Inisialisasi saat window load
-      window.onload = loadConfiguration;
+      function toggleSection(id) {
+        document.getElementById(id).classList.toggle("hidden");
+      }
+
+      function updateGrandTotal() {
+        let total = 0;
+        document
+          .querySelectorAll('[id^="res-"]')
+          .forEach((s) => (total += parseFloat(s.innerText) || 0));
+        // Jika ada elemen display total di UI, update di sini
+      }
+
+      // 7. Fungsi Simpan Nilai (submitScore)
+      async function submitScore() {
+        const btn = event.target;
+        btn.disabled = true;
+        btn.innerText = "Menyimpan...";
+
+        const results = [];
+        document.querySelectorAll('[id^="res-"]').forEach((span) => {
+          const val = parseFloat(span.innerText);
+          if (val > 0) {
+            results.push({ mapel: span.getAttribute("data-name"), skor: val });
+          }
+        });
+
+        try {
+          const response = await fetch(API_URL, {
+            method: "POST",
+            body: JSON.stringify({
+              action: "saveScore",
+              payload: {
+                nis: currentSantri.nis,
+                program: document.querySelector('input[name="prog"]:checked')
+                  .value,
+                details: results,
+                total: results.reduce((a, b) => a + b.skor, 0).toFixed(1),
+              },
+            }),
+          });
+          const res = await response.json();
+          if (res.success) {
+            alert("Data Berhasil Disimpan!");
+            processAndShowResult(); // Pindah ke halaman PDF
+          }
+        } catch (e) {
+          alert(
+            "Gagal mengirim data. Pastikan Apps Script sudah di-deploy sebagai 'Anyone'.",
+          );
+        } finally {
+          btn.disabled = false;
+          btn.innerText = "Kirim Penilaian";
+        }
+      }
+
+      // 8. Fungsi PDF (Singkat)
+      function downloadPDF() {
+        const element = document.getElementById("printable-area");
+        html2pdf()
+          .from(element)
+          .set({
+            margin: 10,
+            filename: "Rapor_Taftisyul.pdf",
+            html2canvas: { scale: 2 },
+            jsPDF: { orientation: "portrait" },
+          })
+          .save();
+      }
     </script>
   </body>
 </html>
